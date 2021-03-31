@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Coroutines</string>
+    <string name="delete">del</string>
+    <string name="title">title:</string>
+    <string name="update">upd</string>
+    <string name="loading">loading...</string>
+    <string name="send"><![CDATA[>]]></string>
+    <string name="text">text:</string>
+</resources>
