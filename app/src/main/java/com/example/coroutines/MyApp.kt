@@ -12,7 +12,6 @@ import androidx.room.Room
 import com.example.coroutines.datebase.AppDatabase
 import com.example.coroutines.list.ItemAdapter
 import kotlinx.coroutines.*
-import okhttp3.Dispatcher
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -53,7 +52,7 @@ class MyApp : Application() {
             AppDatabase::class.java, "database"
         ).build()
 
-        scope = CoroutineScope(Dispatchers.Main)
+        scope = CoroutineScope(Dispatchers.IO)
     }
 
     fun onDestroy() {
@@ -90,11 +89,18 @@ class MyApp : Application() {
         } else {
             scope.launch {
                 val date = async { mDateBase.itemDao()?.getItems() }
-                listItems = date.await() as MutableList<Item>
-                listItems.forEach{
-                    if (indexOfNewItem < it.id + 1) {
-                        indexOfNewItem = it.id + 1
+                withContext(Dispatchers.Main) {
+                    val list = date.await()
+                    if (list != null) {
+                        listItems.addAll(list)
+                        mAdapter?.notifyDataSetChanged()
+                        listItems.forEach {
+                            if (indexOfNewItem < it.id + 1) {
+                                indexOfNewItem = it.id + 1
+                            }
+                        }
                     }
+                    stopLoadAnimation()
                 }
             }
         }
@@ -103,11 +109,10 @@ class MyApp : Application() {
     private fun getPosts(response: Response<ArrayList<Item>>) {
         response.body()?.forEach {
             listItems.add(it)
+            mAdapter?.notifyDataSetChanged()
             if (indexOfNewItem < it.id + 1) {
                 indexOfNewItem = it.id + 1
             }
-
-            mAdapter?.notifyDataSetChanged()
         }
         scope.launch {
             mDateBase.itemDao()?.insertItems(listItems)
@@ -123,27 +128,25 @@ class MyApp : Application() {
     }
 
     fun deleteItem(id: Int) {
-        mService.deletePost(id).enqueue(mCallback {
-            toast(
-                "you deleted post (id: $id)\n" +
-                        "response code: ${it.code()}"
-            )
-        })
+        mService.deletePost(id)
+            .enqueue(mCallback {
+                toast(
+                    "you deleted post (id: $id)\n" +
+                            "response code: ${it.code()}"
+                )
+            })
 
         scope.launch {
             mDateBase.itemDao()?.deleteByID(id)
         }
 
-        var indexDel = -1
         for ((index, item) in listItems.withIndex()) {
             if (item.id == id) {
-                indexDel = index
+                listItems.removeAt(index)
+                mAdapter?.notifyDataSetChanged()
                 break
             }
         }
-
-        listItems.removeAt(indexDel)
-        mAdapter?.notifyDataSetChanged()
     }
 
     fun addItem(title: String, text: String) {
@@ -164,7 +167,6 @@ class MyApp : Application() {
             })
         listItems.add(item)
         mAdapter?.notifyDataSetChanged()
-
 
         scope.launch {
             mDateBase.itemDao()?.insertItem(item)
@@ -192,7 +194,6 @@ class MyApp : Application() {
     }
 
     private fun stopLoadAnimation() {
-        mAdapter?.notifyDataSetChanged()
         textView?.visibility = View.INVISIBLE
         animatorSet?.end()
     }
