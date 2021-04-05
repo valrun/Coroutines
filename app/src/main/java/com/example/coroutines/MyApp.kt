@@ -12,15 +12,12 @@ import androidx.room.Room
 import com.example.coroutines.datebase.AppDatabase
 import com.example.coroutines.list.ItemAdapter
 import kotlinx.coroutines.*
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 class MyApp : Application() {
     private lateinit var mRetrofit: Retrofit
-    private lateinit var mService: JSONService
+    private lateinit var mService: ServiceInterface
     var mAdapter: ItemAdapter? = null
 
     private lateinit var mDateBase: AppDatabase
@@ -43,7 +40,7 @@ class MyApp : Application() {
             .baseUrl("https://jsonplaceholder.typicode.com")
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-        mService = mRetrofit.create(JSONService::class.java)
+        mService = mRetrofit.create(ServiceInterface::class.java)
 
         mSharedPreference = getSharedPreferences("take", Context.MODE_PRIVATE)
         emptyBase = this.mSharedPreference?.getBoolean(EMPTY, true) ?: true
@@ -59,138 +56,128 @@ class MyApp : Application() {
         scope.cancel()
     }
 
-    private fun <T> mCallback(success: (Response<T>) -> (Unit)): Callback<T> {
-        return mCallback(success) {}
-    }
-
-    private fun <T> mCallback(success: (Response<T>) -> (Unit), fail: () -> (Unit)): Callback<T> {
-        return object : Callback<T> {
-            override fun onResponse(call: Call<T>, response: Response<T>) {
-                if (response.isSuccessful) {
-                    success(response)
-                } else {
-                    toast("unsuccessful")
-                }
-            }
-
-            override fun onFailure(call: Call<T>, t: Throwable) {
-                toast("something wrong :\n${t.message}")
-                fail()
-            }
-        }
-    }
-
     fun loadItems() {
         startLoadAnimation()
 
-        println("emptyBase:$emptyBase")
         if (emptyBase) {
-            mService.getPosts().enqueue(mCallback({ getPosts(it) }, { stopLoadAnimation() }))
-        } else {
-            scope.launch {
-                val date = async { mDateBase.itemDao()?.getItems() }
-                withContext(Dispatchers.Main) {
-                    val list = date.await()
-                    if (list != null) {
-                        listItems.addAll(list)
+            try {
+                scope.launch {
+                    val result = mService.getPosts()
+                    listItems.addAll(result)
+                    withContext(Dispatchers.Main) {
                         mAdapter?.notifyDataSetChanged()
-                        listItems.forEach {
-                            if (indexOfNewItem < it.id + 1) {
-                                indexOfNewItem = it.id + 1
-                            }
+                    }
+                    listItems.forEach {
+                        if (indexOfNewItem < it.id + 1) {
+                            indexOfNewItem = it.id + 1
                         }
                     }
-                    stopLoadAnimation()
+                    mDateBase.itemDao()?.insertItems(listItems)
+                    emptyBase = false
+                    mSharedPreference?.edit()?.apply {
+                        this.putBoolean(EMPTY, emptyBase)
+                        apply()
+                    }
                 }
+            } catch (e: CancellationException) {
+                toast("something wrong :\n${e.message}")
+                scope = CoroutineScope(Dispatchers.IO)
+            } finally {
+                stopLoadAnimation()
+            }
+        } else {
+            try {
+                scope.launch {
+                    val data = mDateBase.itemDao()?.getItems() as MutableList<Item>
+                    data.forEach { listItems.add(it) }
+                    listItems.forEach {
+                        if (indexOfNewItem < it.id + 1) {
+                            indexOfNewItem = it.id + 1
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        mAdapter?.notifyDataSetChanged()
+                    }
+                }
+            } catch (e: CancellationException) {
+                toast("something wrong :\n${e.message}")
+                scope = CoroutineScope(Dispatchers.IO)
+            } finally {
+                stopLoadAnimation()
             }
         }
-    }
-
-    private fun getPosts(response: Response<ArrayList<Item>>) {
-        response.body()?.forEach {
-            listItems.add(it)
-            mAdapter?.notifyDataSetChanged()
-            if (indexOfNewItem < it.id + 1) {
-                indexOfNewItem = it.id + 1
-            }
-        }
-        scope.launch {
-            mDateBase.itemDao()?.insertItems(listItems)
-        }
-
-        emptyBase = false
-        mSharedPreference?.edit()?.apply {
-            this.putBoolean(EMPTY, emptyBase)
-            apply()
-        }
-
-        stopLoadAnimation()
     }
 
     fun deleteItem(id: Int) {
-        mService.deletePost(id)
-            .enqueue(mCallback {
-                toast(
-                    "you deleted post (id: $id)\n" +
-                            "response code: ${it.code()}"
-                )
-            })
-
-        scope.launch {
-            mDateBase.itemDao()?.deleteByID(id)
-        }
-
-        for ((index, item) in listItems.withIndex()) {
-            if (item.id == id) {
+        try {
+            scope.launch {
+                mService.deletePost(id)
+                var index = 0
+                for (post in listItems) {
+                    if (listItems[index].id == id) {
+                        break
+                    }
+                    index++
+                }
+                mDateBase.itemDao()?.deleteByID(index)
                 listItems.removeAt(index)
-                mAdapter?.notifyDataSetChanged()
-                break
+                withContext(Dispatchers.Main) {
+                    mAdapter?.notifyDataSetChanged()
+                }
             }
+        } catch (e: CancellationException) {
+            toast("something wrong :\n${e.message}")
+            scope = CoroutineScope(Dispatchers.IO)
+        } finally {
+            stopLoadAnimation()
         }
     }
 
     fun addItem(title: String, text: String) {
         val item = Item(indexOfNewItem, title, text, 0)
-        mService.addPost(item)
-            .enqueue(mCallback {
-                val res = it.body()
-                if (res != null) {
-                    toast(
-                        "Post added:\n" +
-                                "User id:${res.userId}\n" +
-                                "Post id:${res.id}\n" +
-                                "Title:${res.title}\n" +
-                                "Body:${res.body}\n" +
-                                "response code: ${it.code()}"
-                    )
+        try {
+            scope.launch {
+                mService.addPost(item)
+                listItems.add(item)
+                mDateBase.itemDao()?.insertItem(item)
+                withContext(Dispatchers.Main) {
+                    mAdapter?.notifyDataSetChanged()
                 }
-            })
-        listItems.add(item)
-        mAdapter?.notifyDataSetChanged()
-
-        scope.launch {
-            mDateBase.itemDao()?.insertItem(item)
+                indexOfNewItem += 1
+            }
+        } catch (e: CancellationException) {
+            toast("something wrong :\n${e.message}")
+            scope = CoroutineScope(Dispatchers.IO)
+        } finally {
+            stopLoadAnimation()
         }
-
-        indexOfNewItem += 1
     }
 
     fun update() {
         startLoadAnimation()
-        mService.getPosts().enqueue(mCallback({
+        try {
             scope.launch {
+                val result = mService.getPosts()
+                listItems.clear()
+                listItems.addAll(result)
+                withContext(Dispatchers.Main) {
+                    mAdapter?.notifyDataSetChanged()
+                }
+
                 mDateBase.itemDao()?.deleteAll()
+                mDateBase.itemDao()?.insertItems(listItems)
+                emptyBase = false
+                mSharedPreference?.edit()?.apply {
+                    this.putBoolean(EMPTY, emptyBase)
+                    apply()
+                }
             }
-            emptyBase = true
-
-            listItems.clear()
-            mAdapter?.notifyDataSetChanged()
-            indexOfNewItem = 0
-
-            getPosts(it)
-        }, {
+        } catch (e: CancellationException) {
+            toast("something wrong :\n${e.message}")
+            scope = CoroutineScope(Dispatchers.IO)
+        } finally {
             stopLoadAnimation()
-        }))
+        }
     }
 
     private fun stopLoadAnimation() {
