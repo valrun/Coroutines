@@ -60,8 +60,6 @@ class MyApp : Application() {
     fun loadItems() {
         startLoadAnimation()
 
-
-
         if (emptyBase) {
             try {
                 scope.launch {
@@ -123,7 +121,14 @@ class MyApp : Application() {
     fun deleteItem(id: Int) {
         try {
             scope.launch {
-                mService.deletePost(id)
+                try {
+                    mService.deletePost(id)
+                } catch (e: IOException) {
+                    withContext(Dispatchers.Main) {
+                        e.message?.let { toast(it) }
+                    }
+                }
+
                 var index = 0
                 for (post in listItems) {
                     if (listItems[index].id == id) {
@@ -149,7 +154,14 @@ class MyApp : Application() {
         val item = Item(indexOfNewItem, title, text, 0)
         try {
             scope.launch {
-                mService.addPost(item)
+                try {
+                    mService.addPost(item)
+                } catch (e: IOException) {
+                    withContext(Dispatchers.Main) {
+                        e.message?.let { toast(it) }
+                    }
+                }
+
                 listItems.add(item)
                 mDateBase.itemDao()?.insertItem(item)
                 withContext(Dispatchers.Main) {
