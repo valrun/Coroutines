@@ -31,8 +31,6 @@ class MyApp : Application() {
     var textView: TextView? = null
     private var animatorSet: AnimatorSet? = null
 
-    private lateinit var scope: CoroutineScope
-
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -49,12 +47,6 @@ class MyApp : Application() {
             applicationContext,
             AppDatabase::class.java, "database"
         ).build()
-
-        scope = CoroutineScope(Dispatchers.IO)
-    }
-
-    fun onDestroy() {
-        scope.cancel()
     }
 
     fun loadItems() {
@@ -62,7 +54,7 @@ class MyApp : Application() {
 
         if (emptyBase) {
             try {
-                scope.launch {
+                CoroutineScope(Dispatchers.IO).launch {
                     var result = arrayListOf<Item>()
 
                     try {
@@ -91,13 +83,12 @@ class MyApp : Application() {
                 }
             } catch (e: CancellationException) {
                 toast("something wrong :\n${e.message}")
-                scope = CoroutineScope(Dispatchers.IO)
             } finally {
                 stopLoadAnimation()
             }
         } else {
             try {
-                scope.launch {
+                CoroutineScope(Dispatchers.IO).launch {
                     val data = mDateBase.itemDao()?.getItems() as MutableList<Item>
                     data.forEach { listItems.add(it) }
                     listItems.forEach {
@@ -111,7 +102,6 @@ class MyApp : Application() {
                 }
             } catch (e: CancellationException) {
                 toast("something wrong :\n${e.message}")
-                scope = CoroutineScope(Dispatchers.IO)
             } finally {
                 stopLoadAnimation()
             }
@@ -120,7 +110,7 @@ class MyApp : Application() {
 
     fun deleteItem(id: Int) {
         try {
-            scope.launch {
+            CoroutineScope(Dispatchers.IO).launch {
                 try {
                     mService.deletePost(id)
                 } catch (e: IOException) {
@@ -144,7 +134,6 @@ class MyApp : Application() {
             }
         } catch (e: CancellationException) {
             toast("something wrong :\n${e.message}")
-            scope = CoroutineScope(Dispatchers.IO)
         } finally {
             stopLoadAnimation()
         }
@@ -153,7 +142,7 @@ class MyApp : Application() {
     fun addItem(title: String, text: String) {
         val item = Item(indexOfNewItem, title, text, 0)
         try {
-            scope.launch {
+            CoroutineScope(Dispatchers.IO).launch {
                 try {
                     mService.addPost(item)
                 } catch (e: IOException) {
@@ -171,7 +160,6 @@ class MyApp : Application() {
             }
         } catch (e: CancellationException) {
             toast("something wrong :\n${e.message}")
-            scope = CoroutineScope(Dispatchers.IO)
         } finally {
             stopLoadAnimation()
         }
@@ -180,7 +168,7 @@ class MyApp : Application() {
     fun update() {
         startLoadAnimation()
         try {
-            scope.launch {
+            CoroutineScope(Dispatchers.IO).launch {
                 var result = arrayListOf<Item>()
 
                 try {
@@ -208,7 +196,6 @@ class MyApp : Application() {
             }
         } catch (e: CancellationException) {
             toast("something wrong :\n${e.message}")
-            scope = CoroutineScope(Dispatchers.IO)
         } finally {
             stopLoadAnimation()
         }

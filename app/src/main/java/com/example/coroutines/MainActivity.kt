@@ -36,11 +36,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        instance.onDestroy()
-    }
-
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("editText", editText.text.toString())
         outState.putString("editText", titleText.text.toString())
