@@ -14,6 +14,7 @@ import com.example.coroutines.list.ItemAdapter
 import kotlinx.coroutines.*
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.io.IOException
 
 class MyApp : Application() {
     private lateinit var mRetrofit: Retrofit
@@ -59,10 +60,21 @@ class MyApp : Application() {
     fun loadItems() {
         startLoadAnimation()
 
+
+
         if (emptyBase) {
             try {
                 scope.launch {
-                    val result = mService.getPosts()
+                    var result = arrayListOf<Item>()
+
+                    try {
+                        result = mService.getPosts()
+                    } catch (e: IOException) {
+                        withContext(Dispatchers.Main) {
+                            e.message?.let { toast(it) }
+                        }
+                    }
+
                     listItems.addAll(result)
                     withContext(Dispatchers.Main) {
                         mAdapter?.notifyDataSetChanged()
@@ -157,7 +169,17 @@ class MyApp : Application() {
         startLoadAnimation()
         try {
             scope.launch {
-                val result = mService.getPosts()
+                var result = arrayListOf<Item>()
+
+                try {
+                    result = mService.getPosts()
+                } catch (e: IOException) {
+                    withContext(Dispatchers.Main) {
+                        e.message?.let { toast(it) }
+                    }
+                    return@launch
+                }
+
                 listItems.clear()
                 listItems.addAll(result)
                 withContext(Dispatchers.Main) {
