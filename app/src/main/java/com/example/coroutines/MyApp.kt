@@ -8,6 +8,7 @@ import android.content.SharedPreferences
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import androidx.lifecycle.LifecycleCoroutineScope
 import androidx.room.Room
 import com.example.coroutines.datebase.AppDatabase
 import com.example.coroutines.list.ItemAdapter
@@ -49,12 +50,12 @@ class MyApp : Application() {
         ).build()
     }
 
-    fun loadItems() {
+    fun loadItems(scope: LifecycleCoroutineScope) {
         startLoadAnimation()
 
         if (emptyBase) {
             try {
-                CoroutineScope(Dispatchers.IO).launch {
+                scope.launch {
                     var result = arrayListOf<Item>()
 
                     try {
@@ -88,7 +89,7 @@ class MyApp : Application() {
             }
         } else {
             try {
-                CoroutineScope(Dispatchers.IO).launch {
+                scope.launch {
                     val data = mDateBase.itemDao()?.getItems() as MutableList<Item>
                     data.forEach { listItems.add(it) }
                     listItems.forEach {
@@ -108,9 +109,9 @@ class MyApp : Application() {
         }
     }
 
-    fun deleteItem(id: Int) {
+    fun deleteItem(id: Int, scope : CoroutineScope) {
         try {
-            CoroutineScope(Dispatchers.IO).launch {
+            scope.launch {
                 try {
                     mService.deletePost(id)
                 } catch (e: IOException) {
@@ -139,10 +140,10 @@ class MyApp : Application() {
         }
     }
 
-    fun addItem(title: String, text: String) {
+    fun addItem(title: String, text: String, scope: LifecycleCoroutineScope) {
         val item = Item(indexOfNewItem, title, text, 0)
         try {
-            CoroutineScope(Dispatchers.IO).launch {
+            scope.launch {
                 try {
                     mService.addPost(item)
                 } catch (e: IOException) {
@@ -165,10 +166,10 @@ class MyApp : Application() {
         }
     }
 
-    fun update() {
+    fun update(scope: LifecycleCoroutineScope) {
         startLoadAnimation()
         try {
-            CoroutineScope(Dispatchers.IO).launch {
+            scope.launch {
                 var result = arrayListOf<Item>()
 
                 try {

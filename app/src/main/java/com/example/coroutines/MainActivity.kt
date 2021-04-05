@@ -2,6 +2,7 @@ package com.example.coroutines
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.coroutineScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.coroutines.MyApp.Companion.instance
@@ -10,6 +11,7 @@ import kotlinx.android.synthetic.main.activity_main.*
 
 class MainActivity : AppCompatActivity() {
     private lateinit var recyclerView: RecyclerView
+    private val scope = lifecycle.coroutineScope
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -17,22 +19,23 @@ class MainActivity : AppCompatActivity() {
 
         recyclerView = findViewById(R.id.myRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(this)
-        recyclerView.adapter = ItemAdapter(instance.listItems)
+        recyclerView.adapter = ItemAdapter(instance.listItems, scope)
 
         instance.mAdapter = recyclerView.adapter as ItemAdapter?
         instance.textView = findViewById(R.id.load)
-        instance.loadItems()
+        instance.loadItems(scope)
 
         enter.setOnClickListener {
             instance.addItem(
                     titleText.text.toString(),
                     editText.text.toString(),
+                scope
             )
             titleText.setText("")
             editText.setText("")
         }
         update.setOnClickListener {
-            instance.update()
+            instance.update(scope)
         }
     }
 
